@@ -23,7 +23,7 @@ except:
     print("Environment variables not imported")
     raise
 
-#area = ["areaType=nation", "areaName=England"]
+# area = ["areaType=nation", "areaName=England"]
 area = ["areaType=overview"]
 structure = {"date": "date", "cumDeaths": "cumWeeklyNsoDeathsByRegDate"}
 
@@ -32,7 +32,12 @@ def covid19_tweet(event, context):
     if check_last_modified():
         print("Data updated")
         raw_data = get_covid_data()
-        data, latest_data_deaths, latest_weekly_deaths, latest_update_date = format_data(raw_data)
+        (
+            data,
+            latest_data_deaths,
+            latest_weekly_deaths,
+            latest_update_date,
+        ) = format_data(raw_data)
         create_graph(data, latest_data_deaths, latest_weekly_deaths, latest_update_date)
         create_tweet(latest_data_deaths, latest_weekly_deaths, latest_update_date)
         create_toot(latest_data_deaths, latest_weekly_deaths, latest_update_date)
@@ -62,17 +67,17 @@ def check_last_modified():
 def get_last_modified():
     api = Cov19API(filters=area, structure=structure)
     api_timestamp = api.last_update
-    # print("API timestamp", api_timestamp)     
-    last_modified_datetime = datetime.strptime(
-        api_timestamp, "%Y-%m-%dT%H:%M:%S.%fZ"
-    )
+    # print("API timestamp", api_timestamp)
+    last_modified_datetime = datetime.strptime(api_timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
     return last_modified_datetime
 
 
 def get_local_last_modified():
     try:
         # print("getting local_last_modified")
-        local_last_modified = download_blob(storage_bucket, "local_last_cum_deaths_modified")
+        local_last_modified = download_blob(
+            storage_bucket, "local_last_cum_deaths_modified"
+        )
     except:
         print("Could not access", str(storage_bucket), "local_last_cum_deaths_modified")
         local_last_modified = "1970-01-01 00:00:00"
@@ -100,7 +105,12 @@ def format_data(raw_data):
     latest_data_deaths = latest_data["cumDeaths"].astype(int)
     latest_weekly_deaths = latest_data["weekly"].astype(int)
     latest_update_date = latest_data["date"]
-    return data, str(latest_data_deaths), str(latest_weekly_deaths), str(latest_update_date)
+    return (
+        data,
+        str(latest_data_deaths),
+        str(latest_weekly_deaths),
+        str(latest_update_date),
+    )
 
 
 def create_graph(data, latest_data_deaths, latest_weekly_deaths, latest_update_date):
@@ -112,7 +122,14 @@ def create_graph(data, latest_data_deaths, latest_weekly_deaths, latest_update_d
     plt.tick_params("x", labelsize="small")
     plt.box(on=None)
     plt.plot(x_values, data["weekly"], label="weekly", color="C0")
-    plt.title("Deaths with COVID-19 on the Death Certificate - "+ str(latest_data_deaths) + "\nWeekly deaths - " + str(latest_weekly_deaths) + "\nUpdated on " + latest_update_date)
+    plt.title(
+        "Deaths with COVID-19 on the Death Certificate - "
+        + str(latest_data_deaths)
+        + "\nWeekly deaths - "
+        + str(latest_weekly_deaths)
+        + "\nUpdated on "
+        + latest_update_date
+    )
     plt.tight_layout()
     plt.savefig(graph_file)
 
@@ -137,7 +154,11 @@ def create_tweet(latest_data_deaths, latest_weekly_deaths, latest_update_date):
     tweet_text = (
         "Latest total deaths with COVID-19 on the death certificate UK - "
         + latest_data_deaths
-        + " deaths.\nWeekly deaths - " + latest_weekly_deaths + ".\nLast updated on " + latest_update_date + "\n#COVID19 #python #pandas"
+        + " deaths.\nWeekly deaths - "
+        + latest_weekly_deaths
+        + ".\nLast updated on "
+        + latest_update_date
+        + "\n#COVID19 #python #pandas"
     )
     api.update_status(tweet_text, media_ids=[media.media_id])
     print("Tweet sent")
@@ -145,31 +166,44 @@ def create_tweet(latest_data_deaths, latest_weekly_deaths, latest_update_date):
 
 
 def create_toot(latest_data_deaths, latest_weekly_deaths, latest_update_date):
-    auth = {'Authorization': f"Bearer {mastodon_secret}"}
+    auth = {"Authorization": f"Bearer {mastodon_secret}"}
     # upload media
     try:
         url = "https://mastodon.social/api/v2/media"
-        media_info = ('graph.png', open(graph_file, 'rb'), 'image/png')
+        media_info = ("graph.png", open(graph_file, "rb"), "image/png")
         media_description = (
             "Latest total deaths with COVID-19 on the death certificate UK - "
             + latest_data_deaths
-            + " deaths.\nWeekly deaths - " + latest_weekly_deaths + ".\nLast updated on " + latest_update_date + "\n#COVID19 #python #pandas"
+            + " deaths.\nWeekly deaths - "
+            + latest_weekly_deaths
+            + ".\nLast updated on "
+            + latest_update_date
+            + "\n#COVID19 #python #pandas"
         )
-        r = requests.post(url, files={'file': media_info}, headers=auth, params = {'description' : media_description})
-        media_id = r.json()['id']
-        #print(f"Image uploaded to Mastodon - media_id = {media_id}")
+        r = requests.post(
+            url,
+            files={"file": media_info},
+            headers=auth,
+            params={"description": media_description},
+        )
+        media_id = r.json()["id"]
+        # print(f"Image uploaded to Mastodon - media_id = {media_id}")
     except:
         print("Error uploading media to mastodon")
-    
+
     # send toot
     try:
         url = "https://mastodon.social/api/v1/statuses"
         toot_text = (
             "Latest total deaths with COVID-19 on the death certificate UK - "
             + latest_data_deaths
-            + " deaths.\nWeekly deaths - " + latest_weekly_deaths + ".\nLast updated on " + latest_update_date + "\n#COVID19 #python #pandas"
+            + " deaths.\nWeekly deaths - "
+            + latest_weekly_deaths
+            + ".\nLast updated on "
+            + latest_update_date
+            + "\n#COVID19 #python #pandas"
         )
-        params = {'status': toot_text, 'media_ids[]': media_id}
+        params = {"status": toot_text, "media_ids[]": media_id}
         r = requests.post(url, data=params, headers=auth)
     except:
         print("Error sending toot to Mastodon")
@@ -179,7 +213,7 @@ def download_blob(storage_bucket, source_blob_name):
     storage_client = storage.Client()
     bucket = storage_client.bucket(storage_bucket)
     blob = bucket.blob(source_blob_name)
-    blob_string = str(blob.download_as_bytes(), 'utf-8')
+    blob_string = str(blob.download_as_bytes(), "utf-8")
     return blob_string
 
 
